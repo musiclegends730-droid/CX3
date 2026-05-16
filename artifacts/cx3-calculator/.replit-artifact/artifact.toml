@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "CX-3 Flight Computer"
+version = "1.0.0"
+id = "artifacts/cx3-calculator"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20199
+
+[services.development]
+run = "pnpm --filter @workspace/cx3-calculator run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/cx3-calculator", "run", "build" ]
+publicDir = "artifacts/cx3-calculator/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20199"
+BASE_PATH = "/"

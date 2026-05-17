@@ -8,6 +8,7 @@ import AdminPanel from "@/pages/AdminPanel";
 import NotFound from "@/pages/not-found";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { Analytics } from "@vercel/analytics/react";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ function App() {
           </TooltipProvider>
         </ThemeProvider>
       </AuthProvider>
+      <Analytics />
     </QueryClientProvider>
   );
 }

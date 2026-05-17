@@ -29,6 +29,33 @@ const ADMIN_USER: User = {
   createdAt: new Date().toISOString(),
 };
 
+const DEMO_USERS: User[] = [
+  {
+    id: 'user-demo-001',
+    email: 'john@pilot.com',
+    name: 'John Pilot',
+    password: 'demo123',
+    role: 'user',
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'user-demo-002',
+    email: 'sarah@flight.com',
+    name: 'Sarah Aviator',
+    password: 'demo123',
+    role: 'user',
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'user-demo-003',
+    email: 'mike@aircraft.com',
+    name: 'Mike Navigator',
+    password: 'demo123',
+    role: 'user',
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 function getUsers(): User[] {
   try {
     const raw = localStorage.getItem(USERS_KEY);
@@ -45,8 +72,23 @@ function saveUsers(users: User[]) {
 
 export function initAuth() {
   const users = getUsers();
+  let updated = false;
+  
+  // Add admin user if not present
   if (!users.find((u) => u.id === ADMIN_USER.id)) {
     users.unshift(ADMIN_USER);
+    updated = true;
+  }
+  
+  // Add demo users if not present (for testing/demo purposes)
+  for (const demoUser of DEMO_USERS) {
+    if (!users.find((u) => u.id === demoUser.id)) {
+      users.push(demoUser);
+      updated = true;
+    }
+  }
+  
+  if (updated) {
     saveUsers(users);
   }
 }

@@ -1,6 +1,6 @@
 {
   "version": 2,
   "buildCommand": "pnpm run build",
-  "outputDirectory": "artifacts/cx3-calculator/dist",
+  "outputDirectory": "artifacts/cx3-calculator/dist/public",
   "installCommand": "corepack enable && pnpm install"
 }

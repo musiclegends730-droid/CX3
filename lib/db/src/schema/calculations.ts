@@ -14,6 +14,6 @@ export const calculationsTable = pgTable("calculations", {
   created_at: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertCalculationSchema = createInsertSchema(calculationsTable).omit({ id: true, created_at: true });
+export const insertCalculationSchema = createInsertSchema(calculationsTable).omit({ id: true, created_at: true }) as any;
 export type InsertCalculation = z.infer<typeof insertCalculationSchema>;
 export type Calculation = typeof calculationsTable.$inferSelect;

@@ -8,6 +8,7 @@ import AdminPanel from "@/pages/AdminPanel";
 import NotFound from "@/pages/not-found";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ function App() {
               <Router />
             </WouterRouter>
             <Toaster />
+            <SpeedInsights />
           </TooltipProvider>
         </ThemeProvider>
       </AuthProvider>

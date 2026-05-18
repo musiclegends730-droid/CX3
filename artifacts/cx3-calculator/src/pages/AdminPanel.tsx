@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme, useAdminTheme } from "@/contexts/ThemeContext";
 import { getAllUsers, adminResetPassword, adminDeleteUser, setGlobalTheme } from "@/lib/auth";
@@ -20,6 +20,30 @@ export default function AdminPanel() {
   const [newPw, setNewPw] = useState("");
   const [msg, setMsg] = useState("");
   const [globalApplied, setGlobalApplied] = useState(false);
+
+  // Refresh users list when users tab is viewed or when localStorage changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setUsers(getAllUsers());
+    };
+
+    // Check for new users every second when users tab is active
+    let interval: number | null = null;
+    if (section === "users") {
+      interval = window.setInterval(() => {
+        const latestUsers = getAllUsers();
+        setUsers(latestUsers);
+      }, 1000);
+    }
+
+    // Listen for storage changes from other tabs
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [section]);
 
   if (!user || user.role !== "admin") {
     return (
@@ -58,8 +82,10 @@ export default function AdminPanel() {
     if (result.success) {
       setUsers(getAllUsers());
       setMsg(`User "${name}" deleted.`);
+      setTimeout(() => setMsg(""), 3000);
     } else {
       setMsg(result.error ?? "Failed.");
+      setTimeout(() => setMsg(""), 3000);
     }
   };
 

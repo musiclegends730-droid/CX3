@@ -15,33 +15,47 @@ export default function AdminPanel() {
   const { currentTheme, setTheme } = useTheme();
   const { setGlobal } = useAdminTheme();
   const [section, setSection] = useState<Section>("themes");
-  const [users, setUsers] = useState<User[]>(() => getAllUsers());
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
   const [resetTarget, setResetTarget] = useState<string | null>(null);
   const [newPw, setNewPw] = useState("");
   const [msg, setMsg] = useState("");
   const [globalApplied, setGlobalApplied] = useState(false);
 
-  // Refresh users list when users tab is viewed or when localStorage changes
+  // Load users from Supabase when switching to users tab
   useEffect(() => {
-    const handleStorageChange = () => {
-      setUsers(getAllUsers());
+    const loadUsers = async () => {
+      if (section === "users") {
+        setLoading(true);
+        try {
+          const allUsers = await getAllUsers();
+          setUsers(allUsers);
+        } catch (err) {
+          console.error('[AdminPanel] Error loading users:', err);
+          setMsg('Failed to load users from database');
+        } finally {
+          setLoading(false);
+        }
+      }
     };
 
-    // Check for new users every second when users tab is active
+    loadUsers();
+
+    // Poll for new users every 2 seconds when users tab is active
     let interval: number | null = null;
     if (section === "users") {
-      interval = window.setInterval(() => {
-        const latestUsers = getAllUsers();
-        setUsers(latestUsers);
-      }, 1000);
+      interval = window.setInterval(async () => {
+        try {
+          const allUsers = await getAllUsers();
+          setUsers(allUsers);
+        } catch (err) {
+          console.error('[AdminPanel] Error polling users:', err);
+        }
+      }, 2000);
     }
-
-    // Listen for storage changes from other tabs
-    window.addEventListener("storage", handleStorageChange);
 
     return () => {
       if (interval) clearInterval(interval);
-      window.removeEventListener("storage", handleStorageChange);
     };
   }, [section]);
 
@@ -57,15 +71,11 @@ export default function AdminPanel() {
     );
   }
 
-  const applyGlobal = (id: string) => {
-    setGlobal(id);
-    setGlobalApplied(true);
-    setTimeout(() => setGlobalApplied(false), 2000);
-  };
 
-  const handleReset = (userId: string) => {
+
+  const handleReset = async (userId: string) => {
     if (!newPw || newPw.length < 6) { setMsg("Password must be at least 6 characters."); return; }
-    const result = adminResetPassword(userId, newPw);
+    const result = await adminResetPassword(userId, newPw);
     if (result.success) {
       setMsg("Password updated.");
       setResetTarget(null);
@@ -76,15 +86,35 @@ export default function AdminPanel() {
     }
   };
 
-  const handleDelete = (userId: string, name: string) => {
+  const handleDelete = async (userId: string, name: string) => {
     if (!confirm(`Delete user "${name}"? This cannot be undone.`)) return;
-    const result = adminDeleteUser(userId);
+    try {
+      const result = await adminDeleteUser(userId);
+      if (result.success) {
+        const allUsers = await getAllUsers();
+        setUsers(allUsers);
+        setMsg(`User "${name}" deleted.`);
+        setTimeout(() => setMsg(""), 3000);
+      } else {
+        setMsg(result.error ?? "Failed.");
+        setTimeout(() => setMsg(""), 3000);
+      }
+    } catch (err) {
+      setMsg('Error deleting user');
+      console.error('[AdminPanel] Delete error:', err);
+    }
+  };
+
+  const handleApplyGlobal = async (id: string) => {
+    setGlobal(id);
+    const result = await setGlobalTheme(id);
     if (result.success) {
-      setUsers(getAllUsers());
-      setMsg(`User "${name}" deleted.`);
+      setGlobalApplied(true);
+      setTimeout(() => setGlobalApplied(false), 2000);
+      setMsg('Theme applied globally to all users');
       setTimeout(() => setMsg(""), 3000);
     } else {
-      setMsg(result.error ?? "Failed.");
+      setMsg('Failed to apply global theme');
       setTimeout(() => setMsg(""), 3000);
     }
   };
@@ -172,7 +202,7 @@ export default function AdminPanel() {
                   <p className="text-xs text-muted-foreground mt-0.5">{theme.description}</p>
                   <button
                     data-testid={`theme-global-${theme.id}`}
-                    onClick={(e) => { e.stopPropagation(); applyGlobal(theme.id); }}
+                    onClick={(e) => { e.stopPropagation(); handleApplyGlobal(theme.id); }}
                     className="mt-3 w-full text-xs py-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors font-medium"
                   >
                     Set as Global Default

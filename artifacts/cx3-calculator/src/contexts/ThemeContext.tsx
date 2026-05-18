@@ -14,12 +14,19 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [currentTheme, setCurrentTheme] = useState<AppTheme>(() =>
-    getThemeById(
-      localStorage.getItem(THEME_KEY) ??
-      getGlobalTheme() ??
-      DEFAULT_THEME_ID
-    )
+    getThemeById(localStorage.getItem(THEME_KEY) ?? DEFAULT_THEME_ID)
   );
+
+  useEffect(() => {
+    const loadGlobalTheme = async () => {
+      const globalTheme = await getGlobalTheme();
+      const themeId = localStorage.getItem(THEME_KEY) ?? globalTheme ?? DEFAULT_THEME_ID;
+      const theme = getThemeById(themeId);
+      setCurrentTheme(theme);
+      applyTheme(theme);
+    };
+    loadGlobalTheme();
+  }, []);
 
   useEffect(() => {
     applyTheme(currentTheme);

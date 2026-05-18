@@ -1,3 +1,6 @@
+import { v4 as uuidv4 } from 'uuid';
+import * as supabaseLib from './supabase';
+
 export interface User {
   id: string;
   email: string;
@@ -16,209 +19,221 @@ interface Session {
   expiresAt: string;
 }
 
-const USERS_KEY = 'cx3_users';
 const SESSION_KEY = 'cx3_session';
-const GLOBAL_THEME_KEY = 'cx3_global_theme';
 
-const ADMIN_USER: User = {
-  id: 'admin-001',
-  email: 'admin@cx3.app',
-  name: 'Administrator',
-  password: 'CX3Admin2024!',
-  role: 'admin',
-  createdAt: new Date().toISOString(),
-};
-
-const DEMO_USERS: User[] = [
-  {
-    id: 'user-demo-001',
-    email: 'john@pilot.com',
-    name: 'John Pilot',
-    password: 'demo123',
-    role: 'user',
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'user-demo-002',
-    email: 'sarah@flight.com',
-    name: 'Sarah Aviator',
-    password: 'demo123',
-    role: 'user',
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'user-demo-003',
-    email: 'mike@aircraft.com',
-    name: 'Mike Navigator',
-    password: 'demo123',
-    role: 'user',
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
-function getUsers(): User[] {
+// Initialize the database with admin user if needed
+export async function initAuth() {
   try {
-    const raw = localStorage.getItem(USERS_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
+    const users = await supabaseLib.getAllUsers();
+    
+    // Check if admin exists
+    const adminExists = users.some(u => u.email === 'admin@cx3.app');
+    
+    if (!adminExists) {
+      // Create admin user
+      await supabaseLib.createUser({
+        id: 'admin-001',
+        email: 'admin@cx3.app',
+        name: 'Administrator',
+        password: 'CX3Admin2024!',
+        role: 'admin'
+      });
+    }
+  } catch (err) {
+    console.error('[auth] Init error:', err);
+  }
+}
+
+// Get all users from database
+export async function getAllUsers(): Promise<User[]> {
+  try {
+    const users = await supabaseLib.getAllUsers();
+    return users.map(u => ({
+      ...u,
+      createdAt: u.created_at
+    }));
+  } catch (err) {
+    console.error('[auth] getAllUsers error:', err);
     return [];
   }
 }
 
-function saveUsers(users: User[]) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+interface SignupResult {
+  success: boolean;
+  user?: User;
+  error?: string;
 }
 
-export function initAuth() {
-  const users = getUsers();
-  let updated = false;
-  
-  // Add admin user if not present
-  if (!users.find((u) => u.id === ADMIN_USER.id)) {
-    users.unshift(ADMIN_USER);
-    updated = true;
-  }
-  
-  // Add demo users if not present (for testing/demo purposes)
-  for (const demoUser of DEMO_USERS) {
-    if (!users.find((u) => u.id === demoUser.id)) {
-      users.push(demoUser);
-      updated = true;
+// Sign up a new user
+export async function signup(email: string, name: string, password: string): Promise<SignupResult> {
+  try {
+    // Check if user already exists
+    const existing = await supabaseLib.getUserByEmail(email);
+    if (existing) {
+      return { success: false, error: 'Email already registered' };
     }
+
+    const userId = uuidv4();
+    const result = await supabaseLib.createUser({
+      id: userId,
+      email,
+      name,
+      password,
+      role: 'user'
+    });
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    const user: User = {
+      id: userId,
+      email,
+      name,
+      password,
+      role: 'user',
+      createdAt: new Date().toISOString()
+    };
+
+    return { success: true, user };
+  } catch (err) {
+    return { success: false, error: String(err) };
   }
-  
-  if (updated) {
-    saveUsers(users);
+}
+
+interface LoginResult {
+  success: boolean;
+  user?: User;
+  error?: string;
+}
+
+// Login user
+export async function login(email: string, password: string): Promise<LoginResult> {
+  try {
+    const user = await supabaseLib.getUserByEmail(email);
+
+    if (!user) {
+      return { success: false, error: 'Invalid email or password' };
+    }
+
+    if (user.password !== password) {
+      return { success: false, error: 'Invalid email or password' };
+    }
+
+    const token = uuidv4();
+    const session: Session = {
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    };
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+
+    const userData: User = {
+      ...user,
+      createdAt: user.created_at
+    };
+
+    return { success: true, user: userData };
+  } catch (err) {
+    return { success: false, error: String(err) };
   }
 }
 
-export function getAllUsers(): User[] {
-  initAuth();
-  return getUsers();
-}
-
-export function login(email: string, password: string): { success: boolean; user?: User; error?: string } {
-  initAuth();
-  const users = getUsers();
-  const user = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-  );
-  if (!user) return { success: false, error: 'Invalid email or password.' };
-
-  const session: Session = {
-    userId: user.id,
-    token: crypto.randomUUID(),
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-  };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  return { success: true, user };
-}
-
-export function signup(
-  email: string,
-  name: string,
-  password: string,
-  securityQuestion?: string,
-  securityAnswer?: string
-): { success: boolean; user?: User; error?: string } {
-  initAuth();
-  const users = getUsers();
-  if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    return { success: false, error: 'An account with this email already exists.' };
-  }
-
-  const user: User = {
-    id: 'user-' + Date.now(),
-    email: email.trim(),
-    name: name.trim(),
-    password,
-    role: 'user',
-    createdAt: new Date().toISOString(),
-    securityQuestion,
-    securityAnswer: securityAnswer?.toLowerCase().trim(),
-  };
-  users.push(user);
-  saveUsers(users);
-
-  const session: Session = {
-    userId: user.id,
-    token: crypto.randomUUID(),
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-  };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  return { success: true, user };
-}
-
-export function logout() {
-  localStorage.removeItem(SESSION_KEY);
-}
-
-export function getCurrentUser(): User | null {
-  initAuth();
+// Get current session
+export function getSession(): Session | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    const session: Session = JSON.parse(raw);
+
+    const session = JSON.parse(raw) as Session;
+
+    // Check if session expired
     if (new Date(session.expiresAt) < new Date()) {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
-    return getUsers().find((u) => u.id === session.userId) ?? null;
+
+    return session;
   } catch {
     return null;
   }
 }
 
-export function resetPassword(
-  email: string,
-  securityAnswer: string,
-  newPassword: string
-): { success: boolean; error?: string } {
-  const users = getUsers();
-  const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (idx === -1) return { success: false, error: 'Email not found.' };
-  const user = users[idx];
-  if (!user.securityAnswer || !user.securityQuestion) {
-    return { success: false, error: 'No security question set for this account. Contact admin.' };
-  }
-  if (user.securityAnswer !== securityAnswer.toLowerCase().trim()) {
-    return { success: false, error: 'Incorrect answer to security question.' };
-  }
-  users[idx] = { ...user, password: newPassword };
-  saveUsers(users);
-  return { success: true };
+// Logout user
+export function logout() {
+  localStorage.removeItem(SESSION_KEY);
 }
 
-export function adminResetPassword(userId: string, newPassword: string): { success: boolean; error?: string } {
-  const users = getUsers();
-  const idx = users.findIndex((u) => u.id === userId);
-  if (idx === -1) return { success: false, error: 'User not found.' };
-  users[idx] = { ...users[idx], password: newPassword };
-  saveUsers(users);
-  return { success: true };
-}
+// Get current user
+export async function getCurrentUser(): Promise<User | null> {
+  try {
+    const session = getSession();
+    if (!session) return null;
 
-export function adminDeleteUser(userId: string): { success: boolean; error?: string } {
-  if (userId === 'admin-001') return { success: false, error: 'Cannot delete the admin account.' };
-  const users = getUsers().filter((u) => u.id !== userId);
-  saveUsers(users);
-  return { success: true };
-}
+    const users = await supabaseLib.getAllUsers();
+    const user = users.find(u => u.id === session.userId);
 
-export function updateUserTheme(userId: string, themeId: string) {
-  const users = getUsers();
-  const idx = users.findIndex((u) => u.id === userId);
-  if (idx !== -1) {
-    users[idx] = { ...users[idx], preferredTheme: themeId };
-    saveUsers(users);
+    if (!user) {
+      logout();
+      return null;
+    }
+
+    return {
+      ...user,
+      createdAt: user.created_at
+    };
+  } catch (err) {
+    console.error('[auth] getCurrentUser error:', err);
+    return null;
   }
 }
 
-export function getGlobalTheme(): string | null {
-  return localStorage.getItem(GLOBAL_THEME_KEY);
+// User password reset (with security question verification)
+export async function resetPassword(email: string, answer: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // For now, just allow password reset without security question verification
+    // In production, you would verify the answer against stored answer
+    return { success: false, error: 'Password reset not yet implemented' };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
 }
 
-export function setGlobalTheme(themeId: string) {
-  localStorage.setItem(GLOBAL_THEME_KEY, themeId);
+// Admin functions
+export async function adminResetPassword(userId: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // This would need a separate update endpoint
+    // For now, we'll just return a placeholder
+    return { success: false, error: 'Password reset not yet implemented' };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+export async function adminDeleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    return await supabaseLib.deleteUser(userId);
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+// Global theme functions
+export async function getGlobalTheme(): Promise<string> {
+  try {
+    const theme = await supabaseLib.getSetting('global_theme');
+    return theme || 'dark';
+  } catch (err) {
+    console.error('[auth] getGlobalTheme error:', err);
+    return 'dark';
+  }
+}
+
+export async function setGlobalTheme(theme: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    return await supabaseLib.setSetting('global_theme', theme);
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
 }

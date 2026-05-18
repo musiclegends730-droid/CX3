@@ -16,23 +16,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshUser = () => {
-    setUser(getCurrentUser());
+  const refreshUser = async () => {
+    const currentUser = await getCurrentUser();
+    setUser(currentUser);
   };
 
   useEffect(() => {
-    setUser(getCurrentUser());
-    setLoading(false);
+    const loadUser = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+      } catch (err) {
+        console.error('[AuthContext] Load user error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadUser();
   }, []);
 
   const login = async (email: string, password: string) => {
-    const result = authLogin(email, password);
+    const result = await authLogin(email, password);
     if (result.success && result.user) setUser(result.user);
     return { success: result.success, error: result.error };
   };
 
-  const signup = async (email: string, name: string, password: string, q?: string, a?: string) => {
-    const result = authSignup(email, name, password, q, a);
+  const signup = async (email: string, name: string, password: string) => {
+    const result = await authSignup(email, name, password);
     if (result.success && result.user) setUser(result.user);
     return { success: result.success, error: result.error };
   };

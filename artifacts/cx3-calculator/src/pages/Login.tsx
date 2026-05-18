@@ -71,10 +71,10 @@ export default function Login() {
     setLoading(false);
   };
 
-  const handleReset = (e: React.FormEvent) => {
+  const handleReset = async (e: React.FormEvent) => {
     e.preventDefault(); clear();
     if (newPassword.length < 6) { setError("New password must be at least 6 characters."); return; }
-    const result = resetPassword(email, secA, newPassword);
+    const result = await resetPassword(email, secA, newPassword);
     if (result.success) {
       setSuccess("Password reset successfully. You can now log in.");
       setMode("login");
